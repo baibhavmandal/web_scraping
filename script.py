@@ -1,48 +1,74 @@
-import requests
+# Import the necessary libraries
+from selenium import webdriver
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 from bs4 import BeautifulSoup
 import csv
 
-url = "https://www.ebay.com/globaldeals/tech/cell-phones"
-headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'}
+# Set up the WebDriver (you may need to install the appropriate driver)
+driver = webdriver.Chrome()  # Example for Chrome
 
-response_text = requests.get(url, headers=headers).text
+url = "https://www.amazon.in/gp/most-wished-for/electronics/1805559031/ref=zg_mw_pg_1_electronics?ie=UTF8&pg=1"
+driver.get(url)
 
-soup = BeautifulSoup(response_text, 'lxml')
+product_grid_id = "gridItemRoot"
 
-# Initialize an empty list to store product information
-products = []
+# Wait for all elements with the specified ID to be present
+all_product_grid_elements = WebDriverWait(driver, 10).until(
+    EC.presence_of_all_elements_located((By.ID, product_grid_id))
+)
 
-all_product_div = soup.find_all(class_="col")
-for product_div in all_product_div:
-    price_element = product_div.find(class_="first")
-    description_element = product_div.find("h3")
-    link_element = product_div.find("a")
+print(f'Total number of product: {len(all_product_grid_elements)}')
 
-    product_price = price_element.text
-    product_description = description_element.text
-    product_link = link_element['href']
+# Initialize lists to store data
+all_data = []
 
-    # Store the product information in a dictionary
-    product_info = {
-        "Link": product_link,
-        "Price": product_price,
-        "Description": product_description
-    }
+for product_grid_element in all_product_grid_elements:
+    product_grid_html = product_grid_element.get_attribute("outerHTML")
 
-    # Add the dictionary to the list of products
-    products.append(product_info)
+    soup = BeautifulSoup(product_grid_html, 'html.parser')
 
-# Specify the name of the CSV file
-csv_file = "products.csv"
+    product_links_class_name = "a-link-normal"
+    product_links = soup.find_all(class_=product_links_class_name)
+    links = []  # Use a list to store all links
+    description = ""
+    product_price_class_name = "a-color-price"
+    product_price_element = soup.find(class_=product_price_class_name)
+    product_price = ""
 
-# Open the CSV file in write mode and write the header
-with open(csv_file, 'w', newline='') as file:
-    fieldnames = ["Link", "Price", "Description"]
-    writer = csv.DictWriter(file, fieldnames=fieldnames)
-    writer.writeheader()
+    if product_price_element is not None:
+        product_price = product_price_element.text
+        print(f'Price: {product_price}')
+    else:
+        print('Price element not found')
 
-    # Write each product's information to the CSV file
-    for product in products:
-        writer.writerow(product)
+    for index, link_element in enumerate(product_links):
+        href = link_element.get('href')
+        text = link_element.text
+        links.append(href)  # Store links in the list
+        if index == 1:
+            description = text
 
-print(f"Product information has been saved to {csv_file}")
+    print(f'Description: {description}')
+    print(f'Links: {links}')
+
+    data = [description, product_price] + links
+    all_data.append(data)
+
+# Clean up and close the WebDriver
+driver.quit()
+
+csv_file_name = "product_data.csv"
+
+# Write the data to the CSV file
+with open(csv_file_name, 'w', newline='', encoding="utf-8") as csv_file:
+    csv_writer = csv.writer(csv_file)
+    
+    # Write the header row
+    csv_writer.writerow(["Description", "Price"] + [f"Link {i}" for i in range(len(links))])
+    
+    # Write the data
+    for data_row in all_data:
+        csv_writer.writerow(data_row)
